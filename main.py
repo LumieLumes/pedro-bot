@@ -3,6 +3,7 @@ from discord.ext import commands
 import asyncio
 import os
 from keep_alive import keep_alive
+import yt_dlp
 
 intents = discord.Intents.default()
 intents.message_content = True
@@ -11,7 +12,6 @@ intents.voice_states = True
 bot = commands.Bot(command_prefix='!', intents=intents)
 
 queue = asyncio.Queue()
-playing = False
 
 async def is_playing(ctx):
     vc = ctx.voice_client
@@ -39,17 +39,15 @@ async def play(ctx, url):
             return
 
     await queue.put((ctx, url))
-    if not bot.loop.create_task(is_playing(ctx)):
+
+    if not await is_playing(ctx):
         await play_next(ctx)
 
 async def play_next(ctx):
-    global playing
     if queue.empty():
-        playing = False
         return
 
     ctx, url = await queue.get()
-    playing = True
     await ctx.send(f"🎶 Now playing: {url}")
 
     vc = ctx.voice_client
@@ -64,13 +62,12 @@ async def play_next(ctx):
         'noplaylist': True
     }
 
-    import yt_dlp
     with yt_dlp.YoutubeDL(ytdl_options) as ydl:
         info = ydl.extract_info(url, download=False)
         audio_url = info['url']
 
     source = await discord.FFmpegOpusAudio.from_probe(audio_url, **ffmpeg_options)
-    vc.play(source, after=lambda e: bot.loop.create_task(play_next(ctx)))
+    vc.play(source, after=lambda e: asyncio.run_coroutine_threadsafe(play_next(ctx), bot.loop))
 
 @bot.command()
 async def skip(ctx):
