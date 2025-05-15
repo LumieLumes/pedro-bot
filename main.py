@@ -13,6 +13,10 @@ bot = commands.Bot(command_prefix='!', intents=intents)
 queue = asyncio.Queue()
 playing = False
 
+async def is_playing(ctx):
+    vc = ctx.voice_client
+    return vc and vc.is_playing()
+
 @bot.event
 async def on_ready():
     print(f"✅ Logged in as {bot.user.name}")
